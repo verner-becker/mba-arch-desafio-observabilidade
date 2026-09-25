@@ -174,7 +174,7 @@ Portanto:
 limiar = burn rate × error budget = 14,4 × (1 − 0,99) = 14,4 × 0,01 = 0,144
 ```
 
-**O alerta dispara quando mais de 14,4% das cobranças falham.**
+**O alerta dispara quando mais de 14,4% das cobranças falham.** A expressão da regra usa a proporção de falhas, que é `1 − SLI`. Então ela dispara quando o SLI, calculado na mesma janela de 2 minutos, cai abaixo de 85,6%.
 
 ```yaml
 # prometheus/regras/cobrancas.yml
