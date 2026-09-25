@@ -1,36 +1,129 @@
 {
   "uid": "pedidos",
   "title": "Pedidos",
-  "description": "Painel inicial do desafio. Acrescente os seus paineis copiando o bloco de panels e trocando a query, o titulo e o gridPos.",
-  "tags": ["desafio", "observabilidade"],
+  "description": "Três perguntas: o sistema está com erro? está lento? o dinheiro está entrando?",
+  "tags": [
+    "desafio",
+    "observabilidade"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "editable": true,
-  "time": { "from": "now-30m", "to": "now" },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "panels": [
     {
       "id": 1,
       "type": "timeseries",
-      "title": "Quanto trafego a API esta recebendo? Requisicoes por segundo, por rota",
-      "description": "Taxa de requisicoes HTTP derivada do contador do histograma http_request_duration_seconds.",
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "title": "Cobranças com falha (% do total)",
+      "description": "Responde: o sistema está com erro? Fração das cobranças em que o processador de pagamento falhou (SLI do SLO de cobrança). A linha vermelha é o limiar do alerta FalhaEmCobrancas.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (route) (rate(http_request_duration_seconds_count[1m]))",
-          "legendFormat": "{{route}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(cobrancas_processadas_total{resultado=\"falha\"}[2m]))\n/\nsum(rate(cobrancas_processadas_total[2m]))",
+          "legendFormat": "Cobranças com falha",
           "range": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "unit": "percentunit",
           "min": 0,
-          "decimals": 2,
+          "max": 1,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.144
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Requisições HTTP com erro 5xx (% do total)",
+      "description": "Responde: o sistema está com erro? Visão de fora (caixa preta): fração das respostas da api com status 5xx. Zero aqui não garante que o negócio está bem; compare com o painel de cobranças ao lado.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(\n  sum(rate(http_request_duration_seconds_count{status=~\"5..\"}[2m]))\n  /\n  sum(rate(http_request_duration_seconds_count[2m]))\n) or vector(0)",
+          "legendFormat": "Respostas 5xx",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
@@ -38,13 +131,181 @@
             "showPoints": "never",
             "spanNulls": false
           },
-          "color": { "mode": "palette-classic" }
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 1
         },
         "overrides": []
       },
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Latência p95 por rota (segundos)",
+      "description": "Responde: o sistema está lento? Tempo abaixo do qual ficam 95% das requisições de cada rota de negócio da api (exclui /health e /metrics).",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, route) (\n    rate(http_request_duration_seconds_bucket{route!~\"/health|/metrics\"}[2m])\n  )\n)",
+          "legendFormat": "{{route}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "s",
+          "min": 0,
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Pedidos confirmados vs. cobranças aprovadas (por minuto)",
+      "description": "Responde: o dinheiro está entrando? Todo pedido confirmado deveria ter uma cobrança aprovada. A linha vermelha é a diferença: pedidos confirmados ao cliente sem dinheiro correspondente.",
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pedidos_confirmados_total[2m])) * 60",
+          "legendFormat": "Pedidos confirmados",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(cobrancas_processadas_total{resultado=\"aprovada\"}[2m])) * 60",
+          "legendFormat": "Cobranças aprovadas",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(\n  sum(rate(pedidos_confirmados_total[2m])) * 60\n)\n-\n(\n  sum(rate(cobrancas_processadas_total{resultado=\"aprovada\"}[2m])) * 60\n)",
+          "legendFormat": "Confirmados sem cobrança",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "short",
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Confirmados sem cobrança"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 25
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     }
   ]
