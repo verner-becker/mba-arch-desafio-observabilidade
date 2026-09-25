@@ -19,7 +19,7 @@ export function medirRequisicoes(
 
   resposta.on('finish', () => {
     encerrarMedicao({
-      route: requisicao.path,
+      route: requisicao.route?.path ?? 'nao_encontrada',
       method: requisicao.method,
       status: String(resposta.statusCode),
     });
