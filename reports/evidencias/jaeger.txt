@@ -1,0 +1,33 @@
+# Jaeger - trace de um pedido afetado
+
+trace_id: 766470c0bf85b2f23cad5fea83271e00  (primeiro pedido do cenario-a, pedido 421, cliente cli-0367)
+UI: http://localhost:16686/trace/766470c0bf85b2f23cad5fea83271e00
+
+## 1. Spans de negocio do trace (API do Jaeger: GET /api/traces/766470c0bf85b2f23cad5fea83271e00)
+- [api] POST /pedidos  (pai: raiz)
+    error=false  
+- [api] pedido.criar  (pai: request handler - /pedidos)
+    error=false  cliente.id=cli-0367  pedido.id=421  pedido.quantidade_itens=2  pedido.valor_total=1108.31
+- [worker] pedido.processar  (pai: pedido.criar)
+    error=true  cliente.id=cli-0367  cobranca.resultado=falha  pedido.id=421  pedido.status=confirmado  pedido.valor_total=1108.31
+    evento exception: Error: gateway respondeu de forma inesperada
+- [api] lpush  (pai: pedido.criar)
+    error=false  
+- [worker] pg.query:UPDATE loja  (pai: pedido.processar)
+    error=false  
+
+servicos no trace: api, worker | spans: 20 | trace_ids distintos: 1
+
+## 2. O mesmo trace_id buscado no log dos dois processos
+$ docker compose logs --no-log-prefix api worker | grep 766470c0bf85b2f23cad5fea83271e00
+{"timestamp":"2026-09-25T18:50:33.156Z","level":"info","service":"api","msg":"pedido 421 criado para cli-0367","trace_id":"766470c0bf85b2f23cad5fea83271e00","span_id":"3194cdbb0c054845","pedido_id":421}
+{"timestamp":"2026-09-25T18:50:33.156Z","level":"info","service":"worker","msg":"mensagem do pedido 421 recebida da fila","trace_id":"766470c0bf85b2f23cad5fea83271e00","span_id":"10971400af0451ba","pedido_id":421}
+{"timestamp":"2026-09-25T18:50:33.206Z","level":"error","service":"worker","msg":"falha ao processar pagamento: gateway respondeu de forma inesperada","trace_id":"766470c0bf85b2f23cad5fea83271e00","span_id":"10971400af0451ba","cliente_id":"cli-0367","valor_total":1108.31,"pedido_id":421}
+{"timestamp":"2026-09-25T18:50:33.209Z","level":"info","service":"worker","msg":"pedido 421 ficou confirmado","trace_id":"766470c0bf85b2f23cad5fea83271e00","span_id":"10971400af0451ba","pedido_id":421}
+
+## 3. O que o cliente ve (contrato HTTP intacto)
+$ curl -s localhost:8080/pedidos/421
+{"id":421,"cliente_id":"cli-0367","status":"confirmado","valor_total":1108.31}
+
+## 4. Traces com erro no periodo (API do Jaeger: service=worker, operation=pedido.processar, tags error=true)
+traces com pedido.processar em erro: 228

@@ -1,0 +1,26 @@
+# Prometheus - evidencias da reproducao (cenario-a de 15:50:32 a 15:55:31 -03)
+
+## 1. Estimativa com increase() na janela de 5m do cenario-a (avaliado em 15:55:31)
+$ increase(pedidos_criados_total[5m])
+  -> total=543.16
+$ increase(pedidos_confirmados_total[5m])
+  -> total=509.47
+$ sum by (resultado) (increase(cobrancas_processadas_total[5m]))
+  -> aprovada=283.16  recusada=35.79  falha=226.32
+$ sum(increase(pedidos_confirmados_total[5m])) - sum(increase(cobrancas_processadas_total{resultado="aprovada"}[5m]))
+  -> total=226.32
+
+## 2. Valores brutos dos contadores (amostra raspada) no fim da linha de base e no fim do cenario-a
+[BASE = 15:50:31]
+  pedidos_criados_total -> total=389
+  pedidos_confirmados_total -> total=365
+  cobrancas_processadas_total -> aprovada=365  recusada=31  falha=0
+[FIM = 15:55:31]
+  pedidos_criados_total -> total=930
+  pedidos_confirmados_total -> total=872
+  cobrancas_processadas_total -> aprovada=644  recusada=68  falha=228
+
+## 3. SLI (proporcao de falha) no momento do disparo, 15:52:26
+$ sum(rate(cobrancas_processadas_total{resultado="falha"}[2m])) / sum(rate(cobrancas_processadas_total[2m]))
+  -> total=0.43
+  (mesma query no fim da linha de base, 15:50:31) -> total=0

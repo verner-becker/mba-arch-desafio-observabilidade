@@ -1,0 +1,33 @@
+# Log - evidencias da reproducao
+
+## 1. Linhas de nivel error nos dois processos (contagem por mensagem)
+$ docker compose logs --no-log-prefix api worker | jq -r 'select(.level=="error") | "\(.service) | \(.msg)"' | sort | uniq -c
+    228 worker | falha ao processar pagamento: gateway respondeu de forma inesperada
+
+## 2. Pedidos afetados e valor envolvido, a partir das linhas de erro de pagamento
+$ docker compose logs --no-log-prefix worker | jq -s '[.[] | select(.level=="error" and (.msg|startswith("falha ao processar pagamento")))] | {linhas: length, pedidos_distintos: (map(.pedido_id)|unique|length), valor_total: (map(.valor_total)|add*100|round/100), primeiro: (.[0].timestamp), ultimo: (.[-1].timestamp)}'
+{
+  "linhas": 228,
+  "pedidos_distintos": 228,
+  "valor_total": 227523.15,
+  "primeiro": "2026-09-25T18:50:33.206Z",
+  "ultimo": "2026-09-25T18:55:30.212Z"
+}
+
+## 3. Padrao dos clientes afetados (ultimo digito do cliente_id)
+$ ... | jq -r 'select(.level=="error") | .cliente_id[-1:]' | sort | uniq -c
+    228 7
+
+## 4. Destino desses pedidos segundo o proprio worker (linha seguinte do mesmo pedido)
+[
+  {
+    "status": "confirmado",
+    "pedidos": 228
+  }
+]
+
+## 5. Linhas de log sem trace_id/span_id (devem ser so as de subida)
+linhas sem os campos: 0
+api: api ouvindo na porta 8080
+worker: worker consumindo a fila de pedidos
+worker: worker ouvindo na porta 8081

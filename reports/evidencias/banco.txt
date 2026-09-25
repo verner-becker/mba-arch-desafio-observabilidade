@@ -1,0 +1,24 @@
+# Banco (Postgres) - conferencia dos pedidos apontados pelo log
+
+## 1. Status atual dos 228 pedido_id que tiveram falha de pagamento no log
+$ docker compose exec -T postgres psql -U loja -d loja -c "SELECT status, count(*), sum(valor_total) FROM pedidos WHERE id IN (<ids do log>) GROUP BY status;"
+   status   | pedidos |   valor   
+------------+---------+-----------
+ confirmado |     228 | 227523.15
+(1 row)
+
+## 2. Todos os pedidos do periodo do cenario-a (ids 421 a 964)
+$ docker compose exec -T postgres psql -U loja -d loja -c "SELECT status, count(*) AS pedidos, sum(valor_total) AS valor FROM pedidos WHERE id BETWEEN 421 AND 964 GROUP BY status ORDER BY status;"
+   status   | pedidos |   valor   
+------------+---------+-----------
+ confirmado |     507 | 511160.80
+ recusado   |      37 |  32514.33
+(2 rows)
+
+## 3. Existe a mesma assinatura (confirmado + cliente final 7) antes do cenario-a? (historico do seed + linha de base)
+$ docker compose exec -T postgres psql -U loja -d loja -c "SELECT count(*) AS pedidos_confirmados_clientes_final_7, coalesce(sum(valor_total),0) AS valor FROM pedidos WHERE status='confirmado' AND cliente_id LIKE '%7' AND id <= 420;"
+ pedidos_confirmados_clientes_final_7 | valor 
+--------------------------------------+-------
+                                    0 |     0
+(1 row)
+

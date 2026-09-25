@@ -1,0 +1,15 @@
+2026-09-25 15:46:50 -03 down -v (estado zerado)
+2026-09-25 15:47:15 -03 stack no ar (api e worker healthy, targets UP)
+pedidos no banco apos seed: 24 | max id: 24
+2026-09-25 15:47:16 -03 receptor-alertas reiniciado
+2026-09-25 15:47:19 -03 INICIO carga normal (linha de base)
+2026-09-25 15:50:29 -03 linha de base: alertas no receptor = 0
+2026-09-25 15:50:29 -03 FIM carga normal
+ultimo pedido antes do cenario-a: 420
+2026-09-25 15:50:32 -03 INICIO cenario-a
+2026-09-25 15:50:32 -03 regra FalhaEmCobrancas: inactive (+2s)
+2026-09-25 15:51:26 -03 regra FalhaEmCobrancas: pending (+56s)
+2026-09-25 15:52:26 -03 regra FalhaEmCobrancas: firing (+116s)
+2026-09-25 15:52:37 -03 ALERTA FalhaEmCobrancas recebido no receptor-alertas (+127s)
+2026-09-25 15:55:31 -03 FIM cenario-a
+ultimo pedido apos cenario-a: 964 | pendentes: 0
