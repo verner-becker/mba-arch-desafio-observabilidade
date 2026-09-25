@@ -73,7 +73,7 @@ export function criarRotas(redis: Redis): Router {
       valor_total: pedido.valor_total,
     });
 
-    log.info('pedido ' + pedido.id + ' criado para ' + clienteId);
+    log.info('pedido ' + pedido.id + ' criado para ' + clienteId, { pedido_id: pedido.id });
 
     resposta.status(202).json({ pedido_id: pedido.id, status: 'pendente' });
   });

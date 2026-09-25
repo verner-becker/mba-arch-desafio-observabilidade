@@ -41,12 +41,12 @@ async function processarMensagem(mensagem: Record<string, unknown>): Promise<voi
   const clienteId = String(mensagem.cliente_id);
   const valorTotal = Number(mensagem.valor_total);
 
-  log.info('mensagem do pedido ' + pedidoId + ' recebida da fila');
+  log.info('mensagem do pedido ' + pedidoId + ' recebida da fila', { pedido_id: pedidoId });
 
   const status = await decidirStatusDoPedido(clienteId, valorTotal);
   await atualizarStatusPedido(pedidoId, status);
 
-  log.info('pedido ' + pedidoId + ' ficou ' + status);
+  log.info('pedido ' + pedidoId + ' ficou ' + status, { pedido_id: pedidoId });
 }
 
 async function iniciar(): Promise<void> {
