@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { esperarBanco, fecharPool } from '../db/pool';
 import { migrar } from '../db/migracao';
@@ -21,6 +22,9 @@ async function iniciar(): Promise<void> {
 
   aplicacao.use(
     (erro: Error, _requisicao: Request, resposta: Response, _proximo: NextFunction) => {
+      const span = trace.getActiveSpan();
+      span?.recordException(erro);
+      span?.setStatus({ code: SpanStatusCode.ERROR, message: erro.message });
       log.error('erro ao atender requisicao: ' + erro.message);
       resposta.status(500).json({ erro: 'erro interno' });
     }

@@ -1,14 +1,17 @@
 import http from 'node:http';
+import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { atualizarStatusPedido } from '../db/consultas';
 import { esperarBanco, fecharPool } from '../db/pool';
 import { migrar } from '../db/migracao';
-import { consumirPedido, criarConexaoRedis } from '../fila/fila';
-import { log } from '../telemetria/log';
+import { NOME_DA_FILA, consumirPedido, contextoDaMensagem, criarConexaoRedis } from '../fila/fila';
+import { CHAVE_PEDIDO_ID, log } from '../telemetria/log';
 import { TIPO_DE_CONTEUDO, coletar } from '../telemetria/metricas';
 import { decidirStatusDoPedido } from './conciliacao';
 import { pedidosConfirmados } from './metricas-cobranca';
 
 const porta = Number(process.env.WORKER_PORT ?? process.env.PORT ?? 8081);
+
+const tracer = trace.getTracer('loja-pedidos');
 
 let rodando = true;
 
@@ -42,15 +45,43 @@ async function processarMensagem(mensagem: Record<string, unknown>): Promise<voi
   const clienteId = String(mensagem.cliente_id);
   const valorTotal = Number(mensagem.valor_total);
 
-  log.info('mensagem do pedido ' + pedidoId + ' recebida da fila', { pedido_id: pedidoId });
+  const contextoPai = contextoDaMensagem(mensagem).setValue(CHAVE_PEDIDO_ID, pedidoId);
 
-  const status = await decidirStatusDoPedido(clienteId, valorTotal);
-  await atualizarStatusPedido(pedidoId, status);
-  if (status === 'confirmado') {
-    pedidosConfirmados.inc();
-  }
+  await tracer.startActiveSpan(
+    'pedido.processar',
+    {
+      kind: SpanKind.CONSUMER,
+      attributes: {
+        'pedido.id': pedidoId,
+        'cliente.id': clienteId,
+        'pedido.valor_total': valorTotal,
+        'messaging.system': 'redis',
+        'messaging.destination.name': NOME_DA_FILA,
+      },
+    },
+    contextoPai,
+    async (span) => {
+      try {
+        log.info('mensagem do pedido ' + pedidoId + ' recebida da fila', { pedido_id: pedidoId });
 
-  log.info('pedido ' + pedidoId + ' ficou ' + status, { pedido_id: pedidoId });
+        const status = await decidirStatusDoPedido(clienteId, valorTotal);
+        await atualizarStatusPedido(pedidoId, status);
+        if (status === 'confirmado') {
+          pedidosConfirmados.inc();
+        }
+        span.setAttribute('pedido.status', status);
+
+        log.info('pedido ' + pedidoId + ' ficou ' + status, { pedido_id: pedidoId });
+      } catch (erro) {
+        span.recordException(erro as Error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: (erro as Error).message });
+        log.error('erro ao processar o pedido ' + pedidoId + ': ' + (erro as Error).message);
+        throw erro;
+      } finally {
+        span.end();
+      }
+    }
+  );
 }
 
 async function iniciar(): Promise<void> {

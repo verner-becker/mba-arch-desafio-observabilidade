@@ -1,3 +1,4 @@
+import { ROOT_CONTEXT, context, propagation, type Context } from '@opentelemetry/api';
 import Redis from 'ioredis';
 
 export const NOME_DA_FILA = 'pedidos';
@@ -18,7 +19,18 @@ export async function publicarPedido(
   redis: Redis,
   mensagem: MensagemPedido
 ): Promise<void> {
-  await redis.lpush(NOME_DA_FILA, JSON.stringify(mensagem));
+  // O contexto de trace viaja dentro da mensagem (W3C traceparent) para o worker continuar o mesmo trace.
+  const contextoDeTrace: Record<string, string> = {};
+  propagation.inject(context.active(), contextoDeTrace);
+
+  await redis.lpush(NOME_DA_FILA, JSON.stringify({ ...mensagem, contexto_trace: contextoDeTrace }));
+}
+
+// Extrai sobre o contexto raiz: o span do consumo depende so do que veio na mensagem,
+// nunca de um span que por acaso esteja ativo no worker.
+export function contextoDaMensagem(mensagem: Record<string, unknown>): Context {
+  const contextoDeTrace = (mensagem.contexto_trace ?? {}) as Record<string, string>;
+  return propagation.extract(ROOT_CONTEXT, contextoDeTrace);
 }
 
 export async function consumirPedido(
