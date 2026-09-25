@@ -10,6 +10,7 @@ import {
 } from '../db/consultas';
 import { publicarPedido } from '../fila/fila';
 import { log } from '../telemetria/log';
+import { pedidosCriados } from './metricas-pedidos';
 import { TIPO_DE_CONTEUDO, coletar } from '../telemetria/metricas';
 
 export function criarRotas(redis: Redis): Router {
@@ -73,6 +74,7 @@ export function criarRotas(redis: Redis): Router {
       valor_total: pedido.valor_total,
     });
 
+    pedidosCriados.inc();
     log.info('pedido ' + pedido.id + ' criado para ' + clienteId, { pedido_id: pedido.id });
 
     resposta.status(202).json({ pedido_id: pedido.id, status: 'pendente' });

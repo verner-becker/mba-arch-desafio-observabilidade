@@ -6,6 +6,7 @@ import { consumirPedido, criarConexaoRedis } from '../fila/fila';
 import { log } from '../telemetria/log';
 import { TIPO_DE_CONTEUDO, coletar } from '../telemetria/metricas';
 import { decidirStatusDoPedido } from './conciliacao';
+import { pedidosConfirmados } from './metricas-cobranca';
 
 const porta = Number(process.env.WORKER_PORT ?? process.env.PORT ?? 8081);
 
@@ -45,6 +46,9 @@ async function processarMensagem(mensagem: Record<string, unknown>): Promise<voi
 
   const status = await decidirStatusDoPedido(clienteId, valorTotal);
   await atualizarStatusPedido(pedidoId, status);
+  if (status === 'confirmado') {
+    pedidosConfirmados.inc();
+  }
 
   log.info('pedido ' + pedidoId + ' ficou ' + status, { pedido_id: pedidoId });
 }
