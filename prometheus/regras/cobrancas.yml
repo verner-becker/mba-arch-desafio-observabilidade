@@ -1,0 +1,27 @@
+# SLO de cobranca: 99% das cobrancas concluidas sem falha (aprovada ou recusada), janela movel de 30 dias.
+# Error budget: 1% das cobrancas do periodo.
+# Limiar = burn rate de pagina (14,4x, SRE Workbook) x error budget = 14,4 x 0,01 = 0,144.
+# Detalhes da conta no README, secao "SLO e alerta".
+groups:
+  - name: slo-cobrancas
+    rules:
+      - alert: FalhaEmCobrancas
+        expr: |
+          sum(rate(cobrancas_processadas_total{resultado="falha"}[2m]))
+          /
+          sum(rate(cobrancas_processadas_total[2m]))
+          > 0.144
+        for: 1m
+        labels:
+          severity: critical
+          slo: cobrancas-99
+        annotations:
+          summary: "Cobrancas falhando acima do limiar do SLO"
+          description: >-
+            {{ $value | humanizePercentage }} das cobrancas dos ultimos 2m falharam
+            (limiar 14,4% = burn rate 14,4x sobre o error budget de 1% do SLO de 99% em 30 dias).
+            Nesse ritmo o budget do mes acaba em cerca de 2 dias.
+          onde_olhar: >-
+            Dashboard http://localhost:3000/d/pedidos;
+            Jaeger: servico worker, operacao pedido.processar, tag error=true;
+            log: docker compose logs --no-log-prefix worker | grep '"level":"error"'
